@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Pushup Counter API</title>
+    <style>
+        body { font-family: sans-serif; display: grid; justify-content: center; background: #f0f0f0; }
+        h1 { text-align: center; }
+        #videoContainer { display: flex; gap: 20px; }
+        video, img { border: 2px solid #333; border-radius: 5px; background: #000; }
+    </style>
+</head>
+<body>
+    <h1>AI Pushup Trainer (Client-Server)</h1>
+    <div id="videoContainer">
+        <div>
+            <h2>Your Webcam (Client)</h2>
+            <video id="video" width="640" height="480" autoplay muted></video>
+        </div>
+        <div>
+            <h2>Processed by API (Server)</h2>
+            <img id="processedFrame" width="640" height="480">
+        </div>
+    </div>
+
+    <script>
+        const video = document.getElementById('video');
+        const processedFrame = document.getElementById('processedFrame');
+        
+        // 1. Connect to your WebSocket server
+        const socket = new WebSocket('ws://localhost:8000/ws/live_pushup');
+
+        // 2. Get Webcam Access
+        navigator.mediaDevices.getUserMedia({ video: true })
+            .then(stream => {
+                video.srcObject = stream;
+            })
+            .catch(err => {
+                console.error("Error accessing webcam:", err);
+                alert("Could not access webcam. Please allow permission.");
+            });
+
+        // 3. When WebSocket connection is open, start sending frames
+        socket.onopen = () => {
+            console.log("WebSocket connection established.");
+            
+            // Create a canvas to grab frames from the video
+            const canvas = document.createElement('canvas');
+            canvas.width = 640;
+            canvas.height = 480;
+            const context = canvas.getContext('2d');
+
+            // Send a frame every 100ms (10 FPS)
+            // This is similar to the "while loop" in your original script
+            setInterval(() => {
+                if (socket.readyState === WebSocket.OPEN) {
+                    // Draw the current video frame onto the canvas
+                    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    
+                    // Convert the canvas image to a JPEG blob
+                    canvas.toBlob(blob => {
+                        // Send the blob to the server
+                        socket.send(blob);
+                    }, 'image/jpeg', 0.8); // 80% quality
+                }
+            }, 100);
+        };
+
+        // 4. When a processed frame is received from the server
+        socket.onmessage = event => {
+            // The server sends back the processed image as a blob
+            // We create a URL for this blob to display it in the <img> tag
+            const imageUrl = URL.createObjectURL(event.data);
+            processedFrame.src = imageUrl;
+
+            // Revoke the old URL to free up memory
+            processedFrame.onload = () => {
+                URL.revokeObjectURL(imageUrl);
+            };
+        };
+
+        socket.onclose = () => {
+            console.log("WebSocket connection closed.");
+        };
+
+        socket.onerror = error => {
+            console.error("WebSocket error:", error);
+        };
+    </script>
+</body>
+</html>
