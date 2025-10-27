@@ -1,5 +1,6 @@
 fastapi
 uvicorn[standard]
-opencv-python
+gunicorn
+opencv-python-headless
 mediapipe
 numpy
